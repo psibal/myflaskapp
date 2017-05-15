@@ -44,11 +44,18 @@ def about():
 
 @app.route('/articles')
 def articles():
-    return render_template('articles.html', articles = Articles)
+    #get Articles
+    articles = Articles.query.all()
+    if articles:
+        return render_template('articles.html', articles = articles)
+    else:
+        msg = 'No Articles Found'
+        return render_template('articles.html', msg = msg)
 
 @app.route('/article/<string:id>/')
 def article(id):
-    return render_template('article.html', id=id)
+    article = Articles.query.get(id)
+    return render_template('article.html', article=article)
 
 class RegisterForm(Form):
     name = StringField('Name', [validators.Length(min=1, max=50)])
@@ -153,6 +160,37 @@ def add_article():
         return redirect(url_for('dashboard'))
 
     return render_template('add_article.html', form=form)
+
+#Edit Article
+@app.route('/edit_article/<string:id>', methods=['GET', 'POST'])
+@is_logged_in
+def edit_article(id):
+    article = Articles.query.get(id)
+
+    form = ArticleForm(request.form)
+    #populate the article form fields
+    form.title.data = article.title
+    form.body.data = article.body
+
+    if request.method == 'POST' and form.validate():
+        article.title = request.form['title']
+        article.body = request.form['body']
+        db.session.commit()
+        flash('Article Updated.','success')
+        return redirect(url_for('dashboard'))
+
+    return render_template('edit_article.html', form=form)
+
+#delete article
+@app.route('/delete_article/<string:id>', methods=['POST'])
+@is_logged_in
+def delete_article(id):
+    article = Articles.query.get(id)
+    db.session.delete(article)
+    db.session.commit()
+    flash('Article Deleted.','success')
+    return redirect(url_for('dashboard'))
+
 
 if __name__ == '__main__':
     app.secret_key='secret123'
