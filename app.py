@@ -1,5 +1,6 @@
 from flask import Flask, render_template, flash, redirect, url_for, session, request, logging
-from data import Articles
+from datetime import datetime
+#from data import Articles
 from wtforms import Form, StringField, TextAreaField, PasswordField, validators
 from passlib.hash import sha256_crypt
 from functools import wraps
@@ -13,7 +14,7 @@ from flask.ext.sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy(app)
 
-class User (db.Model):
+class Users (db.Model):
     __tablename__ = "users"
     id = db.Column('id', db.Integer, primary_key=True)
     name = db.Column('name', db.Unicode)
@@ -22,8 +23,16 @@ class User (db.Model):
     password = db.Column('password', db.Unicode)
     register_date = db.Column('register_date', db.Date)
 
+class Articles (db.Model):
+    __tablename__ = "articles"
+    id = db.Column('id', db.Integer, primary_key=True)
+    title = db.Column('title', db.Unicode)
+    author = db.Column('author', db.Unicode)
+    body = db.Column('body', db.Unicode)
+    create_date = db.Column('create_date', db.Date)
 
-Articles = Articles()
+
+#Articles = Articles()
 
 @app.route('/')
 def index():
@@ -55,7 +64,7 @@ class RegisterForm(Form):
 def register():
     form = RegisterForm(request.form)
     if request.method == 'POST' and form.validate():
-        user = User(name=form.name.data,
+        user = Users(name=form.name.data,
                     email=form.email.data,
                     username=form.username.data,
                     password=sha256_crypt.encrypt(str(form.password.data)))
@@ -73,7 +82,7 @@ def login():
         password_candidate = request.form['password']
 
         #db query
-        user = User.query.filter_by(username=username).first()
+        user = Users.query.filter_by(username=username).first()
         if user:
             if sha256_crypt.verify(password_candidate,user.password):
                 app.logger.info('PASSWORD MATCHED')
@@ -115,8 +124,35 @@ def logout():
 @app.route('/dashboard')
 @is_logged_in
 def dashboard():
-    return render_template('dashboard.html')
+    #get Articles
+    articles = Articles.query.all()
+    if articles:
+        return render_template('dashboard.html', articles = articles)
+    else:
+        msg = 'No Articles Found'
+        return render_template('dashboard.html', msg = msg)
 
+
+class ArticleForm(Form):
+    title = StringField('Title', [validators.Length(min=1, max=200)])
+    body = TextAreaField('Body', [validators.Length(min=30)])
+
+#Add Article
+@app.route('/add_article', methods=['GET', 'POST'])
+@is_logged_in
+def add_article():
+    form = ArticleForm(request.form)
+    if request.method == 'POST' and form.validate():
+        article = Articles(title = form.title.data,
+                    body = form.body.data,
+                    author = session['username'],
+                    create_date = datetime.now())
+        db.session.add(article)
+        db.session.commit()
+        flash('Article Created.','success')
+        return redirect(url_for('dashboard'))
+
+    return render_template('add_article.html', form=form)
 
 if __name__ == '__main__':
     app.secret_key='secret123'
